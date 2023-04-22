@@ -12,14 +12,19 @@ import ReactCrop, {
   PixelCrop,
 } from 'react-image-crop'
 
-import { canvasPreview } from './canvasPreview'
 import { useDebounceEffect } from 'ahooks';
 
 import 'react-image-crop/dist/ReactCrop.css'
-import { Button, Container, FileButton, Grid, NativeSelect, NumberInput, TextInput } from '@mantine/core';
-import { canvasScruncher } from './canvasScruncher';
+import { AppShell, Button, Container, FileButton, Grid, Header, NativeSelect, Navbar, NavLink, NumberInput, TextInput } from '@mantine/core';
+import { cropImageToTargetDimensions } from './imageCropper';
 
 const wallChoices = ["small", "medium", "tall"];
+
+const pageList = [
+  "1. Load image",
+  "2. Adjust crop",
+  "3. s4s"
+];
 
 const wallSizes = {
   small: 768,
@@ -59,6 +64,7 @@ function centerAspectCrop(
 }
 
 export default function App() {
+  const [activePage, setActivePage] = useState(0)
   const [imgSrc, setImgSrc] = useState('')
   const fullWidthCanvasRef = useRef<HTMLCanvasElement>(null)
   const scrunchedCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -121,14 +127,12 @@ export default function App() {
         fullWidthCanvasRef.current
       ) {
         // We use canvasPreview as it's much faster than imgPreview.
-        canvasScruncher(
+        cropImageToTargetDimensions(
           imgRef.current,
           fullWidthCanvasRef.current,
           fullWidthPixelCrop,
           dimensions.totalWidth,
-          dimensions.totalWidth,
           dimensions.height,
-          rotate,
         )
       }
     },
@@ -147,14 +151,12 @@ export default function App() {
         scrunchedCanvasRef.current
       ) {
         // We use canvasPreview as it's much faster than imgPreview.
-        canvasScruncher(
+        cropImageToTargetDimensions(
           imgRef.current,
           scrunchedCanvasRef.current,
           scrunchedPixelCrop,
-          dimensions.totalWidth,
           dimensions.totalWidth / dimensions.tileCount,
           dimensions.height,
-          rotate,
         )
       }
     },
@@ -223,16 +225,38 @@ export default function App() {
     setScrunchedPixelCrop(completedCrop);
   }, [completedCrop, dimensions])
 
+  const navItems = pageList.map((page, index) => (
+    <NavLink
+      key={page}
+      active={index===activePage}
+      label={page}
+      onClick={() => setActivePage(index)}
+      />
+  ))
+
 
   return (
     <ThemeProvider>
+      <AppShell
+        padding="md"
+        navbar={<Navbar width={{ base: 300 }} height={500} p="xs">
+                {navItems}
+               </Navbar>}
+        header={<Header height={60} p="xs">{/* Header content */}</Header>}
+        styles={(theme) => ({
+          main: { backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[8] : theme.colors.gray[0] },
+        })}
+      >
+        { activePage == 0 && (
+          <FileButton
+            onChange={setInputFile}
+            accept="image/png,image.jpeg">
+            {(props) => <Button {...props}>Upload image</Button>}
+          </FileButton>
+        )}
+        { activePage == 1 && (
     <Grid>
       <Grid.Col span={2}>
-        <FileButton
-          onChange={setInputFile}
-          accept="image/png,image.jpeg">
-          {(props) => <Button {...props}>Upload image</Button>}
-        </FileButton>
         <NativeSelect
           label="Wall height"
           data={wallChoices}
@@ -247,6 +271,11 @@ export default function App() {
         <NumberInput
           value={dimensions.totalWidth}
           label="total width"
+          readOnly={true}
+        />
+        <NumberInput
+          value={dimensions.height}
+          label="height"
           readOnly={true}
         />
         <TextInput
@@ -309,7 +338,13 @@ export default function App() {
         </>
       )}
       </Grid.Col>
-    </Grid>
+    </Grid>)}
+    {activePage == 2 && (
+      <div>
+        todo: instructions
+      </div>
+    )}
+    </AppShell>
 </ThemeProvider>
   )
 }
