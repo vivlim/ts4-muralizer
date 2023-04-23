@@ -21,7 +21,7 @@ import { useDebounceEffect } from 'ahooks';
 
 // This is to demonstate how to make and center a % aspect crop
 // which is a bit trickier so we use some helper functions.
-function centerAspectCrop(
+function defaultCrop(
   mediaWidth: number,
   mediaHeight: number,
   aspect: number,
@@ -30,7 +30,27 @@ function centerAspectCrop(
     makeAspectCrop(
       {
         unit: '%',
-        width: 90,
+        height: 95,
+      },
+      aspect,
+      mediaWidth,
+      mediaHeight,
+    ),
+    mediaWidth,
+    mediaHeight,
+  )
+}
+
+function defaultFillHeightCrop(
+  mediaWidth: number,
+  mediaHeight: number,
+  aspect: number,
+) {
+  return centerCrop(
+    makeAspectCrop(
+      {
+        unit: '%',
+        height: 100,
       },
       aspect,
       mediaWidth,
@@ -50,6 +70,8 @@ export interface OutputImageSpec {
 export interface OutputImage {
   name: string,
   blob: Blob,
+  width: number,
+  height: number,
 }
 
 interface CanvasProps {
@@ -68,7 +90,7 @@ export default function CropCanvas({imgSrc, aspect, accumulator, outputSpecs, sh
   function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     if (aspect) {
       const { width, height } = e.currentTarget
-      setCrop(centerAspectCrop(width, height, aspect))
+      setCrop(defaultCrop(width, height, aspect))
     }
   }
 
@@ -111,7 +133,9 @@ export default function CropCanvas({imgSrc, aspect, accumulator, outputSpecs, sh
 
     return {
       name: spec.name,
-      blob: blob
+      blob: blob,
+      width: spec.width,
+      height: spec.height,
     }
 
   }
@@ -131,10 +155,22 @@ export default function CropCanvas({imgSrc, aspect, accumulator, outputSpecs, sh
     const height = imgRef.current?.height;
 
     if (aspect && width && height) {
-      setCrop(centerAspectCrop(width, height, aspect))
+      setCrop(defaultCrop(width, height, aspect))
     }
 
   }, [aspect])
+
+  React.useEffect(() => {
+    // Reset crop if the requested aspect changes
+
+    const width = imgRef.current?.width;
+    const height = imgRef.current?.height;
+
+    if (crop && (crop.height == 0 || crop.width == 0) && width && height) {
+      setCrop(defaultFillHeightCrop(width, height, aspect))
+    }
+
+  }, [crop])
 
   return (
     <Paper shadow="xs" p="md">

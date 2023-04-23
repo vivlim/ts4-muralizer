@@ -21,10 +21,10 @@ export function cropImageToTargetDimensions(
 
   // Crop is expressed in percents
 
-  const cropX = crop.x / 100;
-  const cropY = crop.y / 100;
-  const cropWidth = crop.width / 100;
-  const cropHeight = crop.height / 100;
+  let cropX = crop.x / 100;
+  let cropY = crop.y / 100;
+  let cropWidth = crop.width / 100;
+  let cropHeight = crop.height / 100;
 
   canvas.width = targetWidth;
   canvas.height = height;
