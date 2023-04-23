@@ -17,6 +17,7 @@ import { useDebounceEffect } from 'ahooks';
 import 'react-image-crop/dist/ReactCrop.css'
 import { AppShell, Button, Container, FileButton, Grid, Header, NativeSelect, Navbar, NavLink, NumberInput, TextInput } from '@mantine/core';
 import { cropImageToTargetDimensions } from './imageCropper';
+import CropCanvas from './CropCanvas';
 
 const wallChoices = ["small", "medium", "tall"];
 
@@ -71,24 +72,12 @@ export default function App() {
   const imgRef = useRef<HTMLImageElement>(null)
   const hiddenAnchorRef = useRef<HTMLAnchorElement>(null)
   const blobUrlRef = useRef('')
-  const [crop, setCrop] = useState<Crop>()
-  const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
-  const [scale, setScale] = useState(1)
-  const [rotate, setRotate] = useState(0)
   const [aspect, setAspect] = useState<number | undefined>(16 / 9)
   const [selectedWallSize, setWallSize] = useState(wallChoices[0])
   const [numTiles, setNumTiles] = useState<number | ''>(3)
   const [dimensions, setDimensions] = useState<WallDimensions>({height: wallSizes.small, totalWidth: wallTileWidth, tileCount: 1, diffuseUvScale: 0})
   const [inputFile, setInputFile] = useState<File | null>(null)
-  const [fullWidthPixelCrop, setFullWidthPixelCrop] = useState<PixelCrop>()
-  const [scrunchedPixelCrop, setScrunchedPixelCrop] = useState<PixelCrop>()
 
-  function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    if (aspect) {
-      const { width, height } = e.currentTarget
-      setCrop(centerAspectCrop(width, height, aspect))
-    }
-  }
 
   function downloadCanvas(canvas: HTMLCanvasElement) {
     canvas.toBlob((blob) => {
@@ -111,60 +100,10 @@ export default function App() {
     downloadCanvas(fullWidthCanvasRef.current);
   }
 
-  function onDownloadScrunchedClick() {
-    if (!scrunchedCanvasRef.current) {
-      throw new Error('Crop canvas does not exist')
-    }
-    downloadCanvas(scrunchedCanvasRef.current);
+  function onDoCropClick() {
+    document.dispatchEvent(new Event("triggerCrop"));
+    
   }
-
-  useDebounceEffect(
-    () => {
-      if (
-        fullWidthPixelCrop?.width &&
-        fullWidthPixelCrop?.height &&
-        imgRef.current &&
-        fullWidthCanvasRef.current
-      ) {
-        // We use canvasPreview as it's much faster than imgPreview.
-        cropImageToTargetDimensions(
-          imgRef.current,
-          fullWidthCanvasRef.current,
-          fullWidthPixelCrop,
-          dimensions.totalWidth,
-          dimensions.height,
-        )
-      }
-    },
-    [fullWidthPixelCrop, scale, rotate, crop, dimensions],
-    {
-      wait: 100,
-    }
-  )
-
-  useDebounceEffect(
-    () => {
-      if (
-        scrunchedPixelCrop?.width &&
-        scrunchedPixelCrop?.height &&
-        imgRef.current &&
-        scrunchedCanvasRef.current
-      ) {
-        // We use canvasPreview as it's much faster than imgPreview.
-        cropImageToTargetDimensions(
-          imgRef.current,
-          scrunchedCanvasRef.current,
-          scrunchedPixelCrop,
-          dimensions.totalWidth / dimensions.tileCount,
-          dimensions.height,
-        )
-      }
-    },
-    [fullWidthPixelCrop, scale, rotate, crop, dimensions],
-    {
-      wait: 100,
-    }
-  )
 
   React.useEffect(() => {
     var height: number | undefined;
@@ -200,18 +139,12 @@ export default function App() {
 
     setDimensions(newDimensions);
 
-    if (imgRef.current){
-      const { width, height } = imgRef.current
-      var aspect = newDimensions.totalWidth / newDimensions.height;
-      setAspect(aspect);
-      var newCrop = centerAspectCrop(width, height, aspect);
-      setCrop(newCrop);
-    }
-  }, [numTiles, selectedWallSize])
+    var aspect = newDimensions.totalWidth / newDimensions.height;
+    setAspect(aspect);
+    }, [numTiles, selectedWallSize])
 
   React.useEffect(() => {
     if (inputFile !== null){
-      setCrop(undefined) // Makes crop preview update between images.
       const reader = new FileReader()
       reader.addEventListener('load', () =>
         setImgSrc(reader.result?.toString() || ''),
@@ -220,10 +153,6 @@ export default function App() {
     }
   }, [inputFile])
 
-  React.useEffect(() => {
-    setFullWidthPixelCrop(completedCrop);
-    setScrunchedPixelCrop(completedCrop);
-  }, [completedCrop, dimensions])
 
   const navItems = pageList.map((page, index) => (
     <NavLink
@@ -286,56 +215,25 @@ export default function App() {
 
           <div>
             <Button onClick={onDownloadFullWidthClick}>Download fullWidth</Button>
-            <Button onClick={onDownloadScrunchedClick}>Download scrunched</Button>
-            <a
-              ref={hiddenAnchorRef}
-              download
-              style={{
-                position: 'absolute',
-                top: '-200vh',
-                visibility: 'hidden',
-              }}
-            >
-              Hidden download
-            </a>
+            <Button onClick={onDoCropClick}>do it</Button>
           </div>
       </Grid.Col>
       <Grid.Col span={6}>
       {!!imgSrc && (
-        <ReactCrop
-          crop={crop}
-          onChange={(_, percentCrop) => setCrop(percentCrop)}
-          onComplete={(c) => setCompletedCrop(c)}
-          aspect={aspect}
-        >
-          <img
-            ref={imgRef}
-            alt="Crop me"
-            src={imgSrc}
-            style={{ transform: `scale(${scale}) rotate(${rotate}deg)` }}
-            onLoad={onImageLoad}
+        <CropCanvas
+          sectionLabel='section'
+          helpLabel='help'
+          imgSrc={imgSrc}
+          aspect={dimensions.totalWidth / dimensions.height}
+          triggerCropEventName="triggerCrop"
+          onCropCompleted={(n)=> console.log("handlign onCropCompoleted")}
+          outputSpecs={[{
+            width: dimensions.totalWidth,
+            height: dimensions.height,
+            name: "normal"
+          }]}
+          showDebugControls={true}
           />
-        </ReactCrop>
-      )}
-      {!!fullWidthPixelCrop && !!scrunchedPixelCrop && (
-        <>
-          <div>
-            <canvas
-              ref={fullWidthCanvasRef}
-              style={{
-                border: '1px solid black',
-              }}
-            />
-          </div>
-          <div>
-            <canvas
-              ref={scrunchedCanvasRef}
-              style={{
-                border: '1px solid black',
-              }}
-            />
-          </div>
-        </>
       )}
       </Grid.Col>
     </Grid>)}
