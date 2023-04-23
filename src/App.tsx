@@ -15,9 +15,13 @@ import ReactCrop, {
 import { useDebounceEffect } from 'ahooks';
 
 import 'react-image-crop/dist/ReactCrop.css'
-import { AppShell, Button, Container, FileButton, Grid, Header, NativeSelect, Navbar, NavLink, NumberInput, TextInput } from '@mantine/core';
+import { AppShell, Aside, Button, Container, FileButton, Grid, Header, NativeSelect, Navbar, NavLink, NumberInput, Paper, Switch, TextInput, Title } from '@mantine/core';
 import { cropImageToTargetDimensions } from './imageCropper';
-import CropCanvas from './CropCanvas';
+import CropCanvas, { OutputImage } from './CropCanvas';
+import WallHeightCropControl from './WallHeightCropControl';
+import { AccumulatingAwaitableEvent } from './CustomAwaitableEvent';
+import { ExportCropsEvent } from './Events';
+import { downloadZipWithFiles } from './MakeZip';
 
 const wallChoices = ["small", "medium", "tall"];
 
@@ -77,6 +81,7 @@ export default function App() {
   const [numTiles, setNumTiles] = useState<number | ''>(3)
   const [dimensions, setDimensions] = useState<WallDimensions>({height: wallSizes.small, totalWidth: wallTileWidth, tileCount: 1, diffuseUvScale: 0})
   const [inputFile, setInputFile] = useState<File | null>(null)
+  const [debugMode, setDebugMode] = useState<boolean>(false)
 
 
   function downloadCanvas(canvas: HTMLCanvasElement) {
@@ -100,9 +105,10 @@ export default function App() {
     downloadCanvas(fullWidthCanvasRef.current);
   }
 
-  function onDoCropClick() {
-    document.dispatchEvent(new Event("triggerCrop"));
-    
+  async function onDoCropClick() {
+    const allImages = await ExportCropsEvent.signalAndWaitForAllProcessors();
+    console.log(`got ${allImages.length} images`);
+    await downloadZipWithFiles("wall.zip", allImages);
   }
 
   React.useEffect(() => {
@@ -169,7 +175,12 @@ export default function App() {
       <AppShell
         padding="md"
         navbar={<Navbar width={{ base: 300 }} height={500} p="xs">
-                {navItems}
+                <Navbar.Section grow>
+                  {navItems}
+                </Navbar.Section>
+                <Navbar.Section>
+                  <Switch checked={debugMode} onChange={(event) => setDebugMode(event.currentTarget.checked)} label="Show extra debug controls" />
+                </Navbar.Section>
                </Navbar>}
         header={<Header height={60} p="xs">{/* Header content */}</Header>}
         styles={(theme) => ({
@@ -220,20 +231,53 @@ export default function App() {
       </Grid.Col>
       <Grid.Col span={6}>
       {!!imgSrc && (
-        <CropCanvas
-          sectionLabel='section'
-          helpLabel='help'
+        <>
+        <WallHeightCropControl
+          sectionLabel='Short walls'
+          helpLabel='The portion of the image to use for short walls'
           imgSrc={imgSrc}
-          aspect={dimensions.totalWidth / dimensions.height}
-          triggerCropEventName="triggerCrop"
-          onCropCompleted={(n)=> console.log("handlign onCropCompoleted")}
-          outputSpecs={[{
-            width: dimensions.totalWidth,
-            height: dimensions.height,
-            name: "normal"
-          }]}
-          showDebugControls={true}
+          tileWidth={wallTileWidth}
+          tileHeight={wallSizes.small}
+          outputFileLabel="small.png"
+          accumulator={ExportCropsEvent}
+          showDebugControls={debugMode}
           />
+        <WallHeightCropControl
+          sectionLabel='Medium walls'
+          helpLabel='The portion of the image to use for medium walls'
+          imgSrc={imgSrc}
+          tileWidth={wallTileWidth}
+          tileHeight={wallSizes.medium}
+          outputFileLabel="medium.png"
+          accumulator={ExportCropsEvent}
+          showDebugControls={debugMode}
+          />
+        <WallHeightCropControl
+          sectionLabel='Tall walls'
+          helpLabel='The portion of the image to use for tall walls'
+          imgSrc={imgSrc}
+          tileWidth={wallTileWidth}
+          tileHeight={wallSizes.tall}
+          outputFileLabel="tall.png"
+          accumulator={ExportCropsEvent}
+          showDebugControls={debugMode}
+          />
+
+        <Paper shadow="xs" p="md">
+          <Title order={3}>Catalog thumbnail</Title>
+            <CropCanvas
+              imgSrc={imgSrc}
+              aspect={1}
+              accumulator={ExportCropsEvent}
+              outputSpecs={[{
+                width: 116,
+                height: 116,
+                name: "thumbnail.png"
+              }]}
+              showDebugControls={debugMode}
+              />
+        </Paper>
+        </>
       )}
       </Grid.Col>
     </Grid>)}
